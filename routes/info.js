@@ -58,8 +58,8 @@ router.post("/info", infoLimiter, async (req, res) => {
       try {
         const meta = JSON.parse(stdout);
 
-        // Build a curated format list (video+audio streams only)
-        const formats = buildFormatList(meta.formats || []);
+        // The frontend expects the raw format array to build its UI
+        const formats = meta.formats || [];
 
         res.json({
           title: meta.title,

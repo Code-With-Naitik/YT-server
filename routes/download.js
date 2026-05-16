@@ -106,6 +106,8 @@ router.post("/download", downloadLimiter, async (req, res) => {
 // ── Argument builder ──────────────────────────────────────────
 
 function buildArgs({ url, format, quality, outPath, ffmpeg }) {
+  const numericQuality = String(quality).replace(/[^0-9]/g, "") || (format === "mp3" ? "192" : "1080");
+
   if (format === "mp3") {
     // Extract audio and convert to MP3 at requested bitrate
     return [
@@ -113,7 +115,7 @@ function buildArgs({ url, format, quality, outPath, ffmpeg }) {
       "--no-warnings",
       "--extract-audio",
       "--audio-format", "mp3",
-      "--audio-quality", quality,   // e.g. "192"
+      "--audio-quality", `${numericQuality}K`,   // e.g. "192K"
       "--ffmpeg-location", ffmpeg,
       "-o", outPath,
       url,
@@ -124,7 +126,7 @@ function buildArgs({ url, format, quality, outPath, ffmpeg }) {
   return [
     "--no-playlist",
     "--no-warnings",
-    "-f", `bestvideo[height<=${quality}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${quality}][ext=mp4]/best`,
+    "-f", `bestvideo[height<=${numericQuality}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${numericQuality}][ext=mp4]/best`,
     "--merge-output-format", "mp4",
     "--ffmpeg-location", ffmpeg,
     "-o", outPath,
