@@ -2,18 +2,32 @@
 // server.js — YouTube Downloader API (Express + yt-dlp)
 // ============================================================
 require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
+
+// Global error/crash logging
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
+});
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const path = require("path");
-const fs = require("fs");
+
+// Server initialization
 
 const downloadRoutes = require("./routes/download");
 const infoRoutes = require("./routes/info");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 // ── Security headers ─────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
@@ -45,12 +59,54 @@ app.use("/api", limiter);
 const TEMP_DIR = process.env.TEMP_DIR || "./temp";
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+
+// ── Auto-update yt-dlp and ensure FFmpeg on start ─────────────
+const { updateYtDlp, ensureFfmpeg } = require("./utils/helpers");
+try {
+  updateYtDlp();
+} catch (e) {
+  console.error("[yt-dlp] Failed to run startup update check:", e.message);
+}
+try {
+  ensureFfmpeg();
+} catch (e) {
+  console.error("[FFmpeg] Failed to run startup FFmpeg check:", e.message);
+}
+
+
 // ── Routes ────────────────────────────────────────────────────
 app.use("/api", infoRoutes);
 app.use("/api", downloadRoutes);
+app.use("/api", adminRoutes);
 
-// ── Serve temp files for download ─────────────────────────────
-app.use("/files", express.static(path.resolve(TEMP_DIR)));
+// ── Serve temp files for download with proper name ─────────────────────────────
+app.get("/files/:filename", (req, res) => {
+  const { filename } = req.params;
+  const { title } = req.query;
+  const filePath = path.resolve(TEMP_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("File not found or link has expired.");
+  }
+
+  // Sanitise the download file name to have its proper title
+  let downloadName = filename;
+  if (title) {
+    const ext = path.extname(filename);
+    const cleanTitle = title
+      .replace(/[^\w\s\-.()\[\]]/g, "") // remove special filesystem characters
+      .replace(/\s+/g, "_")             // replace spaces with underscores
+      .slice(0, 100);                   // limit length
+    downloadName = `${cleanTitle}${ext}`;
+  }
+
+  console.log(`[Server] Serving file "${filename}" as "${downloadName}"`);
+  res.download(filePath, downloadName, (err) => {
+    if (err) {
+      console.error("[Server] Error sending file:", err.message);
+    }
+  });
+});
 
 // ── Health check ──────────────────────────────────────────────
 app.get("/health", (req, res) => res.json({ status: "ok", ts: Date.now() }));
@@ -69,8 +125,22 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅  YTDL API running on http://localhost:${PORT}`);
-});
+const startServer = (port) => {
+  const server = app.listen(port, () => {
+    console.log(`✅  YTDL API running on http://localhost:${port}`);
+  });
+
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`⚠️  Port ${port} is in use, trying ${port + 1}...`);
+      setTimeout(() => startServer(port + 1), 1000);
+    } else {
+      console.error("[Error] Server failed to start:", err);
+    }
+  });
+};
+
+startServer(PORT);
 
 module.exports = app;
+// force reload nodemon 123

@@ -4,9 +4,8 @@
 // without downloading the actual media file.
 // ============================================================
 const express = require("express");
-const { execFile } = require("child_process");
 const rateLimit = require("express-rate-limit");
-const { isValidYouTubeUrl, getYtDlpPath } = require("../utils/helpers");
+const { isValidYouTubeUrl, runYtDlp } = require("../utils/helpers");
 
 const router = express.Router();
 
@@ -34,8 +33,6 @@ router.post("/info", infoLimiter, async (req, res) => {
   }
 
   try {
-    const ytDlp = getYtDlpPath();
-
     // Fetch JSON metadata only — no download
     const args = [
       "--dump-json",
@@ -45,7 +42,7 @@ router.post("/info", infoLimiter, async (req, res) => {
       url.trim(),
     ];
 
-    execFile(ytDlp, args, { timeout: 20000 }, (err, stdout, stderr) => {
+    runYtDlp(args, { timeout: 20000 }, (err, stdout, stderr) => {
       if (err) {
         console.error("[Info] yt-dlp error:", stderr || err.message);
         const msg =
@@ -109,5 +106,37 @@ function buildFormatList(rawFormats) {
 
   return { video: videoFormats, audio: audioFormats };
 }
+
+router.get("/test-ffmpeg", async (req, res) => {
+  const { execSync } = require("child_process");
+  const { getFfmpegPath } = require("../utils/helpers");
+  try {
+    const ffmpegPath = getFfmpegPath();
+    const output = execSync(`"${ffmpegPath}" -version`, { encoding: "utf8", timeout: 3000 });
+    res.json({ status: "success", ffmpegPath, output: output.split("\n")[0] });
+  } catch (err) {
+    res.json({ status: "error", message: err.message, stderr: err.stderr, stack: err.stack });
+  }
+});
+
+router.get("/check-disk", async (req, res) => {
+  const { execSync } = require("child_process");
+  try {
+    const output = execSync("wmic logicaldisk get caption,size,freespace", { encoding: "utf8" });
+    res.json({ status: "success", output });
+  } catch (err) {
+    res.json({ status: "error", message: err.message, stack: err.stack });
+  }
+});
+
+router.get("/run-test", async (req, res) => {
+  const { execSync } = require("child_process");
+  try {
+    const output = execSync("node C:\\Users\\HP\\.gemini\\antigravity\\brain\\dacebf54-616e-4910-96a4-74651ab9986c\\scratch\\test-sync.js", { encoding: "utf8" });
+    res.json({ status: "success", output });
+  } catch (err) {
+    res.json({ status: "error", message: err.message, output: err.stdout || err.stderr || err.message });
+  }
+});
 
 module.exports = router;

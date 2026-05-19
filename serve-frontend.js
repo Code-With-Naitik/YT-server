@@ -4,7 +4,7 @@
 // Add this to server.js when running in production mode.
 // ============================================================
 const path = require("path");
-const fs   = require("fs");
+const fs = require("fs");
 
 /**
  * Mount this AFTER all /api and /files routes in server.js.

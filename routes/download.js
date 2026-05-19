@@ -12,8 +12,9 @@ const rateLimit = require("express-rate-limit");
 
 const {
   isValidYouTubeUrl,
-  getYtDlpPath,
+  runYtDlp,
   getFfmpegPath,
+  isFfmpegAvailable,
   sanitiseFilename,
   scheduleDeletion,
 } = require("../utils/helpers");
@@ -38,7 +39,7 @@ const FILE_TTL   = Number(process.env.FILE_TTL_MS)      || 5 * 60 * 1000;
  *   quality : e.g. "1080" for mp4 or "192" for mp3
  */
 router.post("/download", downloadLimiter, async (req, res) => {
-  const { url, format = "mp4", quality = "720" } = req.body;
+  const { url, format = "mp4", quality = "720", title } = req.body;
 
   // ── Validate inputs ───────────────────────────────────────
   if (!url || !isValidYouTubeUrl(url.trim())) {
@@ -53,15 +54,21 @@ router.post("/download", downloadLimiter, async (req, res) => {
   const outPath  = path.join(TEMP_DIR, outName);
 
   try {
-    const ytDlp  = getYtDlpPath();
     const ffmpeg = getFfmpegPath();
+    const hasFfmpeg = isFfmpegAvailable();
 
-    // Build yt-dlp arguments based on format
-    const args = buildArgs({ url: url.trim(), format, quality, outPath, ffmpeg });
+    if (format === "mp3" && !hasFfmpeg) {
+      return res.status(400).json({
+        error: "FFmpeg is not installed on your system. Audio conversion (MP3) requires FFmpeg. Please download as MP4 instead.",
+      });
+    }
+
+    // Build yt-dlp arguments based on format and ffmpeg presence
+    const args = buildArgs({ url: url.trim(), format, quality, outPath, ffmpeg, hasFfmpeg });
 
     console.log(`[Download] Job ${jobId} — format=${format} quality=${quality}`);
 
-    execFile(ytDlp, args, { timeout: 3 * 60 * 1000 }, (err, stdout, stderr) => {
+    runYtDlp(args, { timeout: 3 * 60 * 1000 }, (err, stdout, stderr) => {
       if (err) {
         console.error(`[Download] Job ${jobId} failed:`, stderr || err.message);
         return res.status(500).json({
@@ -91,7 +98,7 @@ router.post("/download", downloadLimiter, async (req, res) => {
 
       // Return a download URL the client can hit
       res.json({
-        downloadUrl: `/files/${outName}`,
+        downloadUrl: `/files/${outName}?title=${encodeURIComponent(title || "video")}`,
         filename: outName,
         sizeMb: sizeMb.toFixed(2),
         expiresIn: FILE_TTL / 1000,  // seconds
@@ -105,8 +112,13 @@ router.post("/download", downloadLimiter, async (req, res) => {
 
 // ── Argument builder ──────────────────────────────────────────
 
-function buildArgs({ url, format, quality, outPath, ffmpeg }) {
+function buildArgs({ url, format, quality, outPath, ffmpeg, hasFfmpeg }) {
   const numericQuality = String(quality).replace(/[^0-9]/g, "") || (format === "mp3" ? "192" : "1080");
+  
+  // Resolve directory and filename base to construct the proper dynamic extension template
+  const outDir = path.dirname(outPath);
+  const outBase = path.basename(outPath, path.extname(outPath));
+  const templatePath = path.join(outDir, `${outBase}.%(ext)s`);
 
   if (format === "mp3") {
     // Extract audio and convert to MP3 at requested bitrate
@@ -117,19 +129,30 @@ function buildArgs({ url, format, quality, outPath, ffmpeg }) {
       "--audio-format", "mp3",
       "--audio-quality", `${numericQuality}K`,   // e.g. "192K"
       "--ffmpeg-location", ffmpeg,
-      "-o", outPath,
+      "-o", templatePath,
       url,
     ];
   }
 
-  // MP4: merge best video (up to requested height) + best audio
+  // MP4: If FFmpeg is available, merge best video + best audio
+  if (hasFfmpeg) {
+    return [
+      "--no-playlist",
+      "--no-warnings",
+      "-f", `bestvideo[height<=${numericQuality}]+bestaudio[ext=m4a]/bestvideo[height<=${numericQuality}]+bestaudio/best[height<=${numericQuality}]/best`,
+      "--merge-output-format", "mp4",
+      "--ffmpeg-location", ffmpeg,
+      "-o", templatePath,
+      url,
+    ];
+  }
+
+  // MP4 Fallback: If FFmpeg is NOT available, download pre-merged combined format directly (no merge required)
   return [
     "--no-playlist",
     "--no-warnings",
-    "-f", `bestvideo[height<=${numericQuality}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${numericQuality}][ext=mp4]/best`,
-    "--merge-output-format", "mp4",
-    "--ffmpeg-location", ffmpeg,
-    "-o", outPath,
+    "-f", `best[height<=${numericQuality}][ext=mp4]/best`,
+    "-o", templatePath,
     url,
   ];
 }

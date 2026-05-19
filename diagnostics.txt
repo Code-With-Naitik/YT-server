@@ -1,0 +1,26 @@
+--- START DIAGNOSTICS 2026-05-18T07:19:48.730Z ---
+Path: D:\.venv\Scripts\python.exe
+Exists: false
+Path: D:\.venv\Scripts\yt-dlp.exe
+Exists: false
+Path: D:\ytgrab\.venv\Scripts\python.exe
+Exists: true
+  Execution failed: Command failed: "D:\ytgrab\.venv\Scripts\python.exe" -V
+did not find executable at 'C:\Users\HP\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe': The system cannot find the path specified.
+
+
+Stderr: did not find executable at 'C:\Users\HP\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe': The system cannot find the path specified.
+
+
+Path: D:\ytgrab\.venv\Scripts\yt-dlp.exe
+Exists: true
+  Execution failed: Command failed: "D:\ytgrab\.venv\Scripts\yt-dlp.exe" --version
+did not find executable at 'C:\Users\HP\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe': The system cannot find the path specified.
+
+
+Stderr: did not find executable at 'C:\Users\HP\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe': The system cannot find the path specified.
+
+
+Path: D:\ytgrab\ytdl\YT-server\bin\yt-dlp.exe
+Exists: true
+  --version: 2026.03.17
