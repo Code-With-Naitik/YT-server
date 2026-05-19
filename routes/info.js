@@ -128,15 +128,4 @@ router.get("/check-disk", async (req, res) => {
     res.json({ status: "error", message: err.message, stack: err.stack });
   }
 });
-
-router.get("/run-test", async (req, res) => {
-  const { execSync } = require("child_process");
-  try {
-    const output = execSync("node C:\\Users\\HP\\.gemini\\antigravity\\brain\\dacebf54-616e-4910-96a4-74651ab9986c\\scratch\\test-sync.js", { encoding: "utf8" });
-    res.json({ status: "success", output });
-  } catch (err) {
-    res.json({ status: "error", message: err.message, output: err.stdout || err.stderr || err.message });
-  }
-});
-
 module.exports = router;
