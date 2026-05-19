@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ytgrab-api
+    runtime: node
+    buildCommand: npm install && pip install yt-dlp
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://yt-web-lime.vercel.app
+      - key: PORT
+        value: 10000
+      - key: TEMP_DIR
+        value: /tmp/ytgrab
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX
+        value: 20
+      - key: FILE_TTL_MS
+        value: 300000
+      - key: MAX_FILE_SIZE_MB
+        value: 500

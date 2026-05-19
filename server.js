@@ -44,7 +44,6 @@ app.use(
 // ── Body parsing ──────────────────────────────────────────────
 app.use(express.json({ limit: "1mb" }));
 
-app.use(cors({ origin: "*" }));
 // ── Global rate limiter ───────────────────────────────────────
 const limiter = rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
@@ -56,8 +55,13 @@ const limiter = rateLimit({
 app.use("/api", limiter);
 
 // ── Ensure temp directory exists ──────────────────────────────
-const TEMP_DIR = process.env.TEMP_DIR || "./temp";
+const TEMP_DIR =
+  process.env.TEMP_DIR ||
+  (process.platform !== "win32" && process.env.NODE_ENV === "production"
+    ? "/tmp/ytgrab"
+    : "./temp");
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+
 
 
 // ── Auto-update yt-dlp and ensure FFmpeg on start ─────────────

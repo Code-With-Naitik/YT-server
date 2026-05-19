@@ -36,25 +36,40 @@ function getYtDlpPath() {
     return process.env.YT_DLP_PATH;
   }
 
-  // 1. Try local virtual environment path in parent workspace root (3 levels up)
-  const venvPath3 = path.resolve(__dirname, "../../../.venv/Scripts/yt-dlp.exe");
-  if (fs.existsSync(venvPath3)) {
-    return venvPath3;
+  // 1. Standalone compiled binary in YT-server/bin folder
+  const standalonePath = path.resolve(__dirname, "../bin/yt-dlp" + (process.platform === "win32" ? ".exe" : ""));
+  if (fs.existsSync(standalonePath)) {
+    return standalonePath;
   }
 
-  // 2. Try local virtual environment path in subfolder root (2 levels up)
-  const venvPath2 = path.resolve(__dirname, "../../.venv/Scripts/yt-dlp.exe");
-  if (fs.existsSync(venvPath2)) {
-    return venvPath2;
+  if (process.platform === "win32") {
+    // 2a. Try local virtual environment path in parent workspace root (3 levels up)
+    const venvPath3 = path.resolve(__dirname, "../../../.venv/Scripts/yt-dlp.exe");
+    if (fs.existsSync(venvPath3)) return venvPath3;
+
+    // 2b. Try local virtual environment path in subfolder root (2 levels up)
+    const venvPath2 = path.resolve(__dirname, "../../.venv/Scripts/yt-dlp.exe");
+    if (fs.existsSync(venvPath2)) return venvPath2;
+  } else {
+    // Linux/macOS: pip installs yt-dlp to these locations
+    const linuxCandidates = [
+      "/usr/local/bin/yt-dlp",
+      "/usr/bin/yt-dlp",
+      path.join(require("os").homedir(), ".local/bin/yt-dlp"),
+    ];
+    for (const c of linuxCandidates) {
+      if (fs.existsSync(c)) return c;
+    }
   }
 
-  const candidates = ["yt-dlp", "/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp"];
+  // Last resort: try shelling out to PATH
+  const candidates = ["yt-dlp"];
   for (const c of candidates) {
     try {
       execSync(`${c} --version`, { stdio: "ignore" });
       return c;
     } catch {
-      // not found, try next
+      // not found
     }
   }
   throw new Error("yt-dlp not found. Install it via: pip install yt-dlp");
@@ -66,41 +81,43 @@ function getYtDlpPath() {
  */
 function runYtDlp(args, options, callback) {
   const { execFile } = require("child_process");
-  
-  // 1. Try standalone compiled binary in YT-server/bin folder (highest priority!)
-  const standalonePath = path.resolve(__dirname, "../bin/yt-dlp.exe");
-  
+
   let binary = "yt-dlp";
   let finalArgs = [...args];
 
-  if (fs.existsSync(standalonePath)) {
-    binary = standalonePath;
-  } else {
-    // 2. Resolve python.exe inside venv if available (3 levels up or 2 levels up)
-    const pythonPath3 = path.resolve(__dirname, "../../../.venv/Scripts/python.exe");
-    const pythonPath2 = path.resolve(__dirname, "../../.venv/Scripts/python.exe");
-
-    if (fs.existsSync(pythonPath3)) {
-      binary = pythonPath3;
-      finalArgs = ["-m", "yt_dlp", ...args];
-    } else if (fs.existsSync(pythonPath2)) {
-      binary = pythonPath2;
-      finalArgs = ["-m", "yt_dlp", ...args];
-    } else if (process.env.YT_DLP_PATH && fs.existsSync(process.env.YT_DLP_PATH)) {
-      binary = process.env.YT_DLP_PATH;
+  if (process.platform === "win32") {
+    // 1. Standalone .exe in bin folder
+    const standalonePath = path.resolve(__dirname, "../bin/yt-dlp.exe");
+    if (fs.existsSync(standalonePath)) {
+      binary = standalonePath;
     } else {
-      // Check if global yt-dlp candidate works
-      const candidates = ["yt-dlp", "/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp"];
-      for (const c of candidates) {
-        try {
-          execSync(`${c} --version`, { stdio: "ignore" });
-          binary = c;
-          break;
-        } catch {
-          // try next
-        }
+      // 2. Resolve python.exe inside venv
+      const pythonPath3 = path.resolve(__dirname, "../../../.venv/Scripts/python.exe");
+      const pythonPath2 = path.resolve(__dirname, "../../.venv/Scripts/python.exe");
+      if (fs.existsSync(pythonPath3)) {
+        binary = pythonPath3;
+        finalArgs = ["-m", "yt_dlp", ...args];
+      } else if (fs.existsSync(pythonPath2)) {
+        binary = pythonPath2;
+        finalArgs = ["-m", "yt_dlp", ...args];
+      } else if (process.env.YT_DLP_PATH && fs.existsSync(process.env.YT_DLP_PATH)) {
+        binary = process.env.YT_DLP_PATH;
       }
     }
+  } else {
+    // Linux/macOS (Render, Railway, etc.) — pip installs yt-dlp to PATH
+    const linuxCandidates = [
+      "/usr/local/bin/yt-dlp",
+      "/usr/bin/yt-dlp",
+      path.join(require("os").homedir(), ".local/bin/yt-dlp"),
+    ];
+    for (const c of linuxCandidates) {
+      if (fs.existsSync(c)) {
+        binary = c;
+        break;
+      }
+    }
+    // fallback: rely on PATH
   }
 
   console.log(`[runYtDlp] Spawning: "${binary}" ${finalArgs.map(a => `"${a}"`).join(" ")}`);
