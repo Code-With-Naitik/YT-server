@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "vercel-build": "npm install && mkdir -p ./bin && curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o ./bin/yt-dlp && chmod +x ./bin/yt-dlp && echo 'yt-dlp binary downloaded successfully'"
   },
   "dependencies": {
     "cors": "^2.8.5",

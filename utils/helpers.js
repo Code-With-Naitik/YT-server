@@ -105,19 +105,26 @@ function runYtDlp(args, options, callback) {
       }
     }
   } else {
-    // Linux/macOS (Render, Railway, etc.) — pip installs yt-dlp to PATH
-    const linuxCandidates = [
-      "/usr/local/bin/yt-dlp",
-      "/usr/bin/yt-dlp",
-      path.join(require("os").homedir(), ".local/bin/yt-dlp"),
-    ];
-    for (const c of linuxCandidates) {
-      if (fs.existsSync(c)) {
-        binary = c;
-        break;
+    // Linux/macOS (Vercel, Render, Railway, etc.)
+    // 1. Bundled binary downloaded during build (Vercel vercel-build script)
+    const bundledBin = path.resolve(__dirname, "../bin/yt-dlp");
+    if (fs.existsSync(bundledBin)) {
+      binary = bundledBin;
+    } else {
+      // 2. pip-installed locations (Render: pip install yt-dlp)
+      const linuxCandidates = [
+        "/usr/local/bin/yt-dlp",
+        "/usr/bin/yt-dlp",
+        path.join(require("os").homedir(), ".local/bin/yt-dlp"),
+      ];
+      for (const c of linuxCandidates) {
+        if (fs.existsSync(c)) {
+          binary = c;
+          break;
+        }
       }
+      // 3. fallback: rely on PATH
     }
-    // fallback: rely on PATH
   }
 
   console.log(`[runYtDlp] Spawning: "${binary}" ${finalArgs.map(a => `"${a}"`).join(" ")}`);
